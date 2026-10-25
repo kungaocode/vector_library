@@ -1,0 +1,25 @@
+[project]
+data_dir = "data"
+sources_dir = "sources"
+
+[database]
+path = "data/knowledge.sqlite3"
+
+[chunking]
+max_chars = 1200
+overlap_chars = 180
+
+[embedding]
+provider = "hashing"
+model = "hashing-v1"
+dimension = 384
+api_url = ""
+api_key = ""
+timeout_s = 60
+batch_size = 32
+
+[retrieval]
+mode = "hybrid"
+top_k = 8
+candidate_k = 40
+lexical_weight = 0.35

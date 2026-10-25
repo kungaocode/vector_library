@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime data
+data/*
+!data/.gitkeep
+sources/*
+!sources/.gitkeep
+
+# Local configuration and secrets
+.knowledge-vector/
+.env
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
