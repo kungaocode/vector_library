@@ -6,14 +6,16 @@ import typer
 
 from knowledge_vector.config import load_config, write_default_config
 from knowledge_vector.embeddings import create_embedding_provider
+from knowledge_vector.enrichment import create_enricher
 from knowledge_vector.pipeline import IngestionPipeline
 from knowledge_vector.retrieval import SearchEngine
-from knowledge_vector.store import SQLiteStore
+from knowledge_vector.store import create_store
 
 app = typer.Typer(
     name="kvlib",
     help="Local-first personal knowledge vector library.",
     no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
 )
 
 
@@ -29,7 +31,7 @@ def init(
     """Initialize the local configuration and database."""
     created = write_default_config(config_path, force=force)
     config = load_config(config_path)
-    with SQLiteStore(config.database_path) as store:
+    with create_store(config) as store:
         stats = store.stats()
     state = "created" if created else "kept"
     typer.echo(f"Config {state}: {config_path}")
@@ -38,7 +40,9 @@ def init(
 
 @app.command()
 def ingest(
-    path: Path = typer.Argument(..., help="File or directory to ingest."),
+    path: Path | None = typer.Argument(
+        None, help="Source path; defaults to all configured sources.",
+    ),
     config_path: Path = typer.Option(
         Path(".knowledge-vector/config.toml"),
         "--config",
@@ -58,10 +62,17 @@ def ingest(
 ) -> None:
     """Extract, chunk, embed, and index local source files."""
     config = load_config(config_path)
+    paths = (path,) if path is not None else config.ingest_roots
+    for source in paths:
+        if not source.exists():
+            raise typer.BadParameter(f"Source does not exist: {source}")
+        typer.echo(f"Source: {source}")
     embedder = create_embedding_provider(config.embedding)
-    with SQLiteStore(config.database_path) as store:
-        summary = IngestionPipeline(store, embedder, config.chunking).ingest(
-            path,
+    with create_store(config) as store:
+        summary = IngestionPipeline(
+            store, embedder, config.chunking, create_enricher(config.enrichment),
+        ).ingest_paths(
+            paths,
             source_type=source_type,
             recursive=recursive,
             patterns=pattern,
@@ -76,6 +87,8 @@ def ingest(
     )
     for file_path, error in summary.errors:
         typer.echo(f"[failed] {file_path}: {error}", err=True)
+    if summary.failed:
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -99,7 +112,7 @@ def search(
         if selected_mode == "lexical"
         else create_embedding_provider(config.embedding)
     )
-    with SQLiteStore(config.database_path) as store:
+    with create_store(config) as store:
         results = SearchEngine(store, embedder, config.retrieval).search(
             query,
             top_k=top_k,
@@ -128,7 +141,7 @@ def stats(
 ) -> None:
     """Show database statistics."""
     config = load_config(config_path)
-    with SQLiteStore(config.database_path) as store:
+    with create_store(config) as store:
         value = store.stats()
     typer.echo(f"Database: {value['database_path']}")
     typer.echo(f"Documents: {value['documents']}")
@@ -152,7 +165,7 @@ def documents(
 ) -> None:
     """List indexed documents."""
     config = load_config(config_path)
-    with SQLiteStore(config.database_path) as store:
+    with create_store(config) as store:
         rows = store.list_documents(limit=limit)
     if not rows:
         typer.echo("No documents.")

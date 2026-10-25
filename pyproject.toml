@@ -16,6 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.2,<4",
+  "pgvector>=0.3,<1",
+]
 semantic = [
   "sentence-transformers>=3.0",
 ]
@@ -40,3 +44,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]

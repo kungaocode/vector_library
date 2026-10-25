@@ -1,5 +1,8 @@
 # Knowledge Vector Library
 
+本机 Windows / PostgreSQL / Qwen 部署及入库操作请先阅读 [README-WINDOWS.md](README-WINDOWS.md)。
+已增加 pgvector 后端、Ollama BGE-M3、Qwen3.8-Flash 云端摘要/关键词增强、Qwen3.7-Text-Embedding-Flash 云端向量及代码文件导入；下面保留独立 SQLite 模式的用法。
+
 一个本地优先的个人知识向量库基础实现。它负责把 PDF、论文、Markdown、文本和百科 HTML 转换为可追溯的知识片段，并通过关键词与向量混合检索找回相关内容。
 
 详细设计见 [PROJECT.md](PROJECT.md)。

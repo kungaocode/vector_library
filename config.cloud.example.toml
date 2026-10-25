@@ -1,0 +1,49 @@
+# Requires a standard Alibaba Cloud Model Studio key, NOT the Token Plan key.
+# Replace YOUR_WORKSPACE_ID using the base URL shown in your Model Studio console.
+[project]
+sources_dir = "F:/vector_library/documents/inbox"
+sources_dirs = [
+  "F:/vector_library/documents/inbox",
+  "F:/vector_library/shared/documents/inbox",
+  "F:/vector_library/shared/code",
+]
+
+[database]
+backend = "postgres"
+host = "127.0.0.1"
+port = 5432
+name = "vector_library"
+user = "windows_writer"
+namespace = "knowledge_qwen37_enriched"
+credentials_file = "F:/vector_library/secrets/credentials.json"
+credentials_account = "windows"
+
+[chunking]
+max_chars = 1200
+overlap_chars = 180
+
+[embedding]
+provider = "openai-compatible"
+model = "qwen3.7-text-embedding-flash"
+dimension = 1024
+send_dimensions = true
+api_url = "https://YOUR_WORKSPACE_ID.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/embeddings"
+api_key_env = "KVLIB_EMBEDDING_API_KEY"
+api_key_file = "F:/vector_library/secrets/bailian-embedding.key"
+timeout_s = 90
+batch_size = 8
+
+[retrieval]
+mode = "hybrid"
+top_k = 8
+candidate_k = 40
+lexical_weight = 0.35
+
+[enrichment]
+provider = "openai-compatible"
+model = "qwen3.8-flash"
+api_url = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions"
+api_key_env = "KVLIB_QWEN_API_KEY"
+api_key_file = "F:/vector_library/secrets/qwen-token-plan.key"
+timeout_s = 90
+max_tokens = 512

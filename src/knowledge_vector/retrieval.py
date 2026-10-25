@@ -4,18 +4,16 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
-
 from knowledge_vector.config import RetrievalConfig
 from knowledge_vector.embeddings import EmbeddingProvider
 from knowledge_vector.models import SearchResult
-from knowledge_vector.store import SQLiteStore
+from knowledge_vector.store import Store
 
 
 class SearchEngine:
     def __init__(
         self,
-        store: SQLiteStore,
+        store: Store,
         embedder: EmbeddingProvider | None,
         config: RetrievalConfig,
     ) -> None:

@@ -15,6 +15,22 @@ sources/*
 # Local configuration and secrets
 .knowledge-vector/
 .env
+.env.*
+!.env.example
+*.key
+secrets/
+credentials.json
+file-share.json
+api_qwen.txt
+qwen.txt
+qwen-vector.txt
+
+# Local services, generated reports, and database backups
+pgdata/
+runtime/
+pipeline-venv/
+backups/
+logs/
 
 # OS/editor files
 .DS_Store

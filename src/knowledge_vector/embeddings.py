@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections.abc import Sequence
 from typing import Any, Protocol
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 import numpy as np
 
-from knowledge_vector.config import EmbeddingConfig
-
-_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
-_MAX_ERROR_BYTES = 4096
+from knowledge_vector.config import EmbeddingConfig, resolve_api_key
+from knowledge_vector.http_client import post_json
 
 
 class EmbeddingProvider(Protocol):
@@ -101,6 +96,7 @@ class OpenAICompatibleEmbedding:
         dimension: int,
         timeout_s: float = 60.0,
         batch_size: int = 32,
+        send_dimensions: bool = False,
     ) -> None:
         api_url = api_url.strip()
         model = model.strip()
@@ -128,6 +124,7 @@ class OpenAICompatibleEmbedding:
         self.dimension = dimension
         self.timeout_s = timeout_s
         self.batch_size = batch_size
+        self.send_dimensions = send_dimensions
 
     def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
         values = list(texts)
@@ -143,39 +140,36 @@ class OpenAICompatibleEmbedding:
         return self.embed_documents([text])[0]
 
     def _embed_batch(self, texts: Sequence[str]) -> np.ndarray:
-        payload = json.dumps(
-            {"model": self.name, "input": list(texts)},
-            ensure_ascii=False,
-        ).encode("utf-8")
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        request = Request(self.api_url, data=payload, headers=headers, method="POST")
-
-        try:
-            with urlopen(request, timeout=self.timeout_s) as response:
-                raw = response.read(_MAX_RESPONSE_BYTES + 1)
-        except HTTPError as exc:
-            detail = _read_error_detail(exc, secret=self.api_key)
-            raise RuntimeError(
-                f"Embedding API returned HTTP {exc.code}: {detail}"
-            ) from exc
-        except (URLError, TimeoutError, OSError) as exc:
-            raise RuntimeError(f"Embedding API request failed: {exc}") from exc
-
-        if len(raw) > _MAX_RESPONSE_BYTES:
-            raise RuntimeError("Embedding API response exceeded the 16 MiB safety limit")
-        try:
-            decoded = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("Embedding API returned invalid JSON") from exc
+        payload: dict[str, Any] = {"model": self.name, "input": list(texts)}
+        if self.send_dimensions:
+            payload.update(dimensions=self.dimension, encoding_format="float")
+        decoded = self._request(payload)
         return _parse_embedding_response(
-            decoded,
-            expected_count=len(texts),
-            dimension=self.dimension,
+            decoded, expected_count=len(texts), dimension=self.dimension,
+        )
+
+    def _request(self, payload: dict[str, Any]) -> Any:
+        return post_json(
+            self.api_url, payload, api_key=self.api_key, timeout_s=self.timeout_s,
+        )
+
+
+class OllamaEmbedding(OpenAICompatibleEmbedding):
+    """Batched native Ollama embeddings; fail rather than silently truncate input."""
+
+    def _embed_batch(self, texts: Sequence[str]) -> np.ndarray:
+        decoded = self._request({
+            "model": self.name, "input": list(texts), "truncate": False,
+            "keep_alive": "10m",
+        })
+        if not isinstance(decoded, dict) or not isinstance(decoded.get("embeddings"), list):
+            raise RuntimeError("Ollama response must contain an embeddings list")
+        return _parse_embedding_response(
+            {"data": [
+                {"index": index, "embedding": vector}
+                for index, vector in enumerate(decoded["embeddings"])
+            ]},
+            expected_count=len(texts), dimension=self.dimension,
         )
 
 
@@ -184,14 +178,21 @@ def create_embedding_provider(config: EmbeddingConfig) -> EmbeddingProvider:
         return HashingEmbedding(dimension=config.dimension, model=config.model)
     if config.provider == "sentence-transformers":
         return SentenceTransformerEmbedding(model=config.model, dimension=config.dimension)
+    if config.provider == "ollama":
+        return OllamaEmbedding(
+            api_url=config.api_url or "http://127.0.0.1:11434/api/embed",
+            api_key=resolve_api_key(config), model=config.model, dimension=config.dimension,
+            timeout_s=config.timeout_s, batch_size=config.batch_size,
+        )
     if config.provider in {"api", "openai-compatible"}:
         return OpenAICompatibleEmbedding(
             api_url=config.api_url,
-            api_key=config.api_key,
+            api_key=resolve_api_key(config),
             model=config.model,
             dimension=config.dimension,
             timeout_s=config.timeout_s,
             batch_size=config.batch_size,
+            send_dimensions=config.send_dimensions,
         )
     raise ValueError(f"Unknown embedding provider: {config.provider}")
 
@@ -230,16 +231,6 @@ def _parse_embedding_response(payload: Any, *, expected_count: int, dimension: i
         )
     indexed_vectors.sort(key=lambda item: item[0])
     return np.vstack([vector for _, vector in indexed_vectors]).astype(np.float32)
-
-
-def _read_error_detail(exc: HTTPError, *, secret: str = "") -> str:
-    try:
-        raw = exc.read(_MAX_ERROR_BYTES)
-    except OSError:
-        return exc.reason or "request failed"
-    text = raw.decode("utf-8", errors="replace").strip()
-    detail = text or str(exc.reason or "request failed")
-    return detail.replace(secret, "[redacted]") if secret else detail
 
 
 def _tokens(text: str) -> list[str]:

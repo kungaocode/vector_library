@@ -37,7 +37,8 @@ class _EmbeddingHandler(BaseHTTPRequestHandler):
         return
 
 
-def test_openai_compatible_embedding_uses_configured_endpoint() -> None:
+@pytest.mark.parametrize("send_dimensions", [False, True])
+def test_openai_compatible_embedding_uses_configured_endpoint(send_dimensions: bool) -> None:
     _EmbeddingHandler.requests = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _EmbeddingHandler)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -53,6 +54,7 @@ def test_openai_compatible_embedding_uses_configured_endpoint() -> None:
                 api_key="test-key",
                 timeout_s=5,
                 batch_size=2,
+                send_dimensions=send_dimensions,
             )
         )
         vectors = provider.embed_documents(["alpha", "beta", "gamma"])
@@ -66,13 +68,16 @@ def test_openai_compatible_embedding_uses_configured_endpoint() -> None:
     assert len(_EmbeddingHandler.requests) == 2
     first_request, second_request = _EmbeddingHandler.requests
     assert first_request["authorization"] == "Bearer test-key"
+    dimension_fields = {"dimensions": 3, "encoding_format": "float"} if send_dimensions else {}
     assert first_request["payload"] == {
         "model": "test-embedding",
         "input": ["alpha", "beta"],
+        **dimension_fields,
     }
     assert second_request["payload"] == {
         "model": "test-embedding",
         "input": ["gamma"],
+        **dimension_fields,
     }
 
 

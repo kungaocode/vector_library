@@ -1,0 +1,37 @@
+[project]
+sources_dir = "F:/vector_library/documents/inbox"
+sources_dirs = [
+  "F:/vector_library/documents/inbox",
+  "F:/vector_library/shared/documents/inbox",
+  "F:/vector_library/shared/code",
+]
+
+[database]
+backend = "postgres"
+host = "127.0.0.1"
+port = 5432
+name = "vector_library"
+user = "windows_writer"
+namespace = "knowledge_bge_m3"
+# Passwords stay outside the project. KVLIB_DATABASE_URL overrides these settings.
+credentials_file = "F:/vector_library/secrets/credentials.json"
+credentials_account = "windows"
+password_env = "KVLIB_DB_PASSWORD"
+
+[chunking]
+max_chars = 1200
+overlap_chars = 180
+
+[embedding]
+provider = "ollama"
+model = "bge-m3:latest"
+dimension = 1024
+api_url = "http://127.0.0.1:11434/api/embed"
+timeout_s = 180
+batch_size = 8
+
+[retrieval]
+mode = "hybrid"
+top_k = 8
+candidate_k = 40
+lexical_weight = 0.35

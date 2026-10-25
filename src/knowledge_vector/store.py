@@ -4,11 +4,40 @@ import json
 import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 
 from knowledge_vector.models import Chunk, LoadedDocument
+
+if TYPE_CHECKING:
+    from knowledge_vector.config import AppConfig
+
+
+class Store(Protocol):
+    def close(self) -> None: ...
+    def __enter__(self) -> Store: ...
+    def __exit__(self, *_: object) -> None: ...
+    def document_hash(self, path: Path) -> str | None: ...
+    def index_document(
+        self, document: LoadedDocument, chunks: Sequence[Chunk],
+        embeddings: np.ndarray, embedding_model: str,
+    ) -> bool: ...
+    def lexical_candidates(self, query: str, limit: int) -> list[dict[str, Any]]: ...
+    def vector_candidates(
+        self, query_embedding: np.ndarray, limit: int, *, embedding_model: str,
+    ) -> list[dict[str, Any]]: ...
+    def get_chunks(self, chunk_ids: Sequence[str]) -> dict[str, dict[str, Any]]: ...
+    def stats(self) -> dict[str, Any]: ...
+    def list_documents(self, limit: int = 100) -> list[dict[str, Any]]: ...
+
+
+def create_store(config: AppConfig) -> Store:
+    if config.database.backend == "postgres":
+        from knowledge_vector.postgres_store import PostgresStore
+
+        return PostgresStore(config.database, config.embedding)
+    return SQLiteStore(config.database_path)
 
 
 class SQLiteStore:

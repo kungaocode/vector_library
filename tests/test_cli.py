@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-import fitz
+import pymupdf as fitz
 from typer.testing import CliRunner
 
 from knowledge_vector.cli import app

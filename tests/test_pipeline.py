@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import fitz
+import pymupdf as fitz
 
 from knowledge_vector.config import ChunkingConfig, EmbeddingConfig, RetrievalConfig
 from knowledge_vector.embeddings import create_embedding_provider
@@ -38,7 +38,7 @@ def test_ingest_search_and_increment(tmp_path: Path) -> None:
     assert second.skipped == 1
     assert results
     assert "自注意力机制" in results[0].text
-    assert results[0].path == str(source.resolve())
+    assert Path(results[0].path) == source.resolve()
 
 
 def test_changed_file_replaces_old_document(tmp_path: Path) -> None:

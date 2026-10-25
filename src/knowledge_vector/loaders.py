@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-import fitz
+import pymupdf as fitz
 from bs4 import BeautifulSoup
 
 from knowledge_vector.models import LoadedDocument, TextBlock
@@ -32,6 +34,19 @@ TYPE_BY_EXTENSION = {
     ".json": "wiki",
     ".jsonl": "wiki",
 }
+CODE_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
+    ".cs", ".go", ".rs", ".sh", ".ps1", ".sql", ".toml", ".yaml", ".yml", ".css",
+}
+SUPPORTED_EXTENSIONS.update(CODE_EXTENSIONS)
+TYPE_BY_EXTENSION.update(dict.fromkeys(CODE_EXTENSIONS, "code"))
+IGNORED_DIRECTORIES = {
+    "node_modules", "venv", "__pycache__", "secrets", "pgdata", "runtime",
+    "pipeline-venv", "backups", "logs", "tools",
+}
+IGNORED_FILENAMES = {
+    "api_qwen.txt", "qwen.txt", "qwen-vector.txt", "credentials.json", "file-share.json",
+}
 
 
 class UnsupportedSourceError(ValueError):
@@ -45,15 +60,27 @@ def discover_files(
     patterns: Iterable[str] | None = None,
 ) -> list[Path]:
     if path.is_file():
-        return [path] if path.suffix.lower() in SUPPORTED_EXTENSIONS else []
+        return [path] if (
+            path.suffix.lower() in SUPPORTED_EXTENSIONS
+            and path.name.lower() not in IGNORED_FILENAMES
+            and not path.name.endswith(".meta.json")
+        ) else []
     if not path.is_dir():
         return []
 
     selected: list[Path] = []
-    candidates = path.rglob("*") if recursive else path.glob("*")
+    candidates: list[Path] = []
+    for directory, directories, filenames in os.walk(path):
+        directories[:] = sorted(
+            name for name in directories
+            if not name.startswith(".") and name not in IGNORED_DIRECTORIES
+        ) if recursive else []
+        candidates.extend(Path(directory) / filename for filename in filenames)
     normalized_patterns = list(patterns or [])
     for candidate in sorted(candidates):
         if not candidate.is_file() or candidate.name.startswith("."):
+            continue
+        if candidate.name.lower() in IGNORED_FILENAMES:
             continue
         if candidate.name.endswith(".meta.json"):
             continue
@@ -92,13 +119,19 @@ def load_document(
         title, blocks = _load_markdown(resolved)
     elif suffix in {".json", ".jsonl"}:
         title, blocks = _load_json(resolved)
+    elif suffix in CODE_EXTENSIONS:
+        title = resolved.name
+        blocks = [TextBlock(text=resolved.read_text(encoding="utf-8-sig"))]
     else:
         title, blocks = _load_text(resolved)
 
     title = str(sidecar.get("title") or title or resolved.stem).strip()
     normalized_blocks_list: list[TextBlock] = []
     for block in blocks:
-        normalized = _normalize_text(block.text)
+        normalized = (
+            block.text.replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+            if suffix in CODE_EXTENSIONS else _normalize_text(block.text)
+        )
         if normalized:
             normalized_blocks_list.append(
                 TextBlock(
@@ -120,6 +153,11 @@ def load_document(
             "title": title,
             "source_type": source_type,
             "metadata": metadata,
+            "blocks": [
+                {"text": block.text, "heading": block.heading,
+                 "page_number": block.page_number, "metadata": block.metadata}
+                for block in normalized_blocks
+            ],
         },
         ensure_ascii=False,
         sort_keys=True,
