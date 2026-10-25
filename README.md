@@ -18,7 +18,8 @@
 ## 快速开始
 
 ```bash
-cd /home/kun/Desktop/vector_library
+git clone https://github.com/kungaocode/vector_library.git
+cd vector_library
 python -m pip install -e ".[dev]"
 
 kvlib init

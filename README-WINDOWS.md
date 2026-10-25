@@ -12,7 +12,7 @@
 | `F:\vector_library\shared\documents\inbox` | Windows / Linux 共享资料 |
 | `F:\vector_library\shared\code` | Windows / Linux 共享代码 |
 
-Linux 的共享根目录为 `smb://192.168.71.71/VectorFiles`。向量化任务在 Windows 主机执行。共享的 `exchange` 目录用于临时交换文件，默认不扫描；可通过 `ingest 路径` 单独处理。
+Linux 的共享根目录为 `smb://<WINDOWS_LAN_IP>/VectorFiles`，请替换为 Windows 主机的实际局域网地址。向量化任务在 Windows 主机执行。共享的 `exchange` 目录用于临时交换文件，默认不扫描；可通过 `ingest 路径` 单独处理。
 
 配置项 `[project].sources_dirs` 指定多个默认来源；未配置时兼容原有 `sources_dir`。命令中明确指定文件或目录时，只处理该路径。扫描会对重叠目录中的同一路径去重；不同路径下的文件分别保留记录。未变化的论文会跳过。
 
@@ -137,4 +137,4 @@ git -c safe.directory=E:/vector_library/vector_library push origin main
 
 本项目位于 exFAT 的 E 盘，上面命令中的 `safe.directory` 只对当前 Git 命令生效。其他电脑克隆仓库后，需另外创建本机配置并设置密钥、数据库和原始资料路径；GitHub 代码同步不等同于数据库备份。
 
-本机 Git 已在该仓库的本地配置中使用 Windows 代理地址 `http://127.0.0.1:9674`，代理客户端需要运行。若代理端口变化，可用 `git -c safe.directory=E:/vector_library/vector_library config --local http.proxy 新地址` 更新；不再使用代理时，可用同一命令的 `--unset http.proxy` 删除该项。此配置不上传到 GitHub。
+若 Git 需要本机代理，可用 `git -c safe.directory=E:/vector_library/vector_library config --local http.proxy http://127.0.0.1:<PROXY_PORT>` 配置，请替换为实际代理端口，并保持代理客户端运行。不再使用代理时，可用同一命令的 `--unset http.proxy` 删除该项。代理与提交身份配置只保存在本机，不上传到 GitHub。
